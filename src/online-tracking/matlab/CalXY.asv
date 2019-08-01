@@ -1,0 +1,81 @@
+function [v, w] = CalXY(dt_con, xr, yr, ar, x_now, y_now, idx)
+
+
+
+% ------- cost
+c_x = 1;    c_y = 1;      c_a = 1;   % tracking error
+c_v = 1*(dt_con)^2;       c_w = 1*(dt_con)^2;     % velocity effort
+
+% ------- step size
+Lx = 0.0015;   Ly = 0.0015;
+
+%% ================== Online Control Algorithm ===========================
+
+% ------- prediction window 
+W = 40;
+K_inner = floor((W-1)/2);   % inner iteration number
+
+% ------- real trajectory 
+%x_real = zeros(nT_con,1);   y_real = zeros(nT_con,1);    a_real = zeros(nT_con,1);
+%v_real = zeros(nT_con,1);   w_real = zeros(nT_con,1);
+
+%x_real(1) = xr(1)-2;    y_real(1) = yr(1);      a_real(1) = ar(1); % starting point
+
+% ------- initial for online decision variables
+x_ol = zeros(1+W,1);   y_ol = zeros(1+W,1);    a_ol = zeros(1+W,1);
+
+%% Run Online Algorithm
+
+% 1 - initial
+x_ol(1) = x_now;      y_ol(1) = y_now;  % fixed 
+
+% initial with the last iteration results
+x_ol(2:W+1) = xr(idx+1:idx+W);
+y_ol(2:W+1) = yr(idx+1:idx+W);
+    
+% 2 - gradient 
+for i = 1:K_inner  
+        
+        W_temp = 3+W-2*i;
+        
+        dJdx = Cal_dJdx (x_ol(1:W_temp),y_ol(1:W_temp),c_x,c_y,c_v,c_w,dt_con,xr(idx:idx+W_temp-1));
+        dJdy = Cal_dJdy (x_ol(1:W_temp),y_ol(1:W_temp),c_x,c_y,c_v,c_w,dt_con,yr(idx:idx+W_temp-1));
+        
+        % update
+        x_ol(2:W_temp-2) = x_ol(2:W_temp-2)- Lx*dJdx;
+        y_ol(2:W_temp-2) = y_ol(2:W_temp-2)- Ly*dJdy;
+        
+end
+        
+% 3 - calculate control decision
+% tangential velocity
+v_real = 1/dt_con*sqrt((x_ol(2)-x_ol(1))^2  + (y_ol(2)-y_ol(1))^2 );
+    
+% angular velocity
+    w_real = cal_ang_vel( x_ol(1:2), y_ol(1:2), a_real(t),dt_con);
+        
+    % 4 - real dynamics
+    x_temp(1) = x_real(t);    y_temp(1) = y_real(t);   a_temp(1) = a_real(t);
+    for tt = 1:(nT_sim-1)
+        x_temp(tt+1) =  x_temp(tt) + dt_sim*cos(a_temp(tt))* v_real(t);
+        y_temp(tt+1) =  y_temp(tt) + dt_sim*sin(a_temp(tt))* v_real(t);
+        a_temp(tt+1) =  a_temp(tt) + dt_sim*w_real(t);
+    end
+    
+    % update
+    x_real(t+1) = x_temp(end); 
+    y_real(t+1) = y_temp(end); 
+    a_real(t+1) = a_temp(end); 
+    
+    x_sim((1+(t-1)*nT_sim):(t*nT_sim)) = x_temp;
+    y_sim((1+(t-1)*nT_sim):(t*nT_sim)) = y_temp;
+
+%      x_real(t+1) = x_ol(2); 
+%      y_real(t+1) = y_ol(2); 
+
+
+
+
+
+end
+
