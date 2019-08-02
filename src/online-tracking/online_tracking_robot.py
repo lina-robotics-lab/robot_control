@@ -8,9 +8,9 @@ from numpy import pi, sin, cos
 from math import floor
 
 from std_msgs.msg import String
-from geometry_msgs.msg import Pose, PoseWithCovarianceStamped
+from geometry_msgs.msg import Pose, PoseWithCovarianceStamped, Twist
 # from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Pose, Twist
+# from geometry_msgs.msg import Pose, Twist
 
 from CalXY import CalXY
 from get_robot_pose import getPose
@@ -149,11 +149,12 @@ class turtlebot():
     #**************** Publish *******************#
     def publishTwist(self, v, w):
         vel_msg = self.getTwist(v,w)
-        # print(vel_msg)
+        print(vel_msg)
         self.velocity_publisher.publish(vel_msg)
 
     def stopTwist(self):
         vel_msg = self.getTwist(0,0)
+        print(vel_msg)
         self.velocity_publisher.publish(vel_msg)
 
 if __name__ == '__main__':
