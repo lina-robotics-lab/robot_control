@@ -8,8 +8,9 @@ from numpy import pi
 from math import floor
 
 from std_msgs.msg import String
-from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Pose, Twist
+from geometry_msgs.msg import Pose, PoseWithCovarianceStamped
+# from nav_msgs.msg import Odometry
+# from geometry_msgs.msg import Pose, Twist
 
 from CalXY import CalXY
 from get_robot_pose import getPose
@@ -20,10 +21,6 @@ import matplotlib.pyplot as plt
 #*************** CONSTANTS ******************#
 BURGER_MAX_LIN_VEL = 0.22
 BURGER_MAX_ANG_VEL = 2.84
-# WAFFLE_MAX_LIN_VEL = 0.26
-# WAFFLE_MAX_ANG_VEL = 1.82
-# LIN_VEL_STEP_SIZE = 0.01
-# ANG_VEL_STEP_SIZE = 0.1
 
 class turtlebot():
 
@@ -31,15 +28,21 @@ class turtlebot():
         #Creating our publisher and subscriber
         self.pose = Pose()
         self.velocity_publisher = rospy.Publisher('cmd_vel', Twist, queue_size=10)
-        self.pose_subscriber = rospy.Subscriber('odom', Odometry, self.callback)
+        # self.pose_subscriber = rospy.Subscriber('odom', Odometry, self.callback)
+        self.pose_subscriber = rospy.Subscriber('amcl_pose', PoseWithCovarianceStamped, self.callback)
         self.rate = rospy.Rate(2)
         # rospy.spin()
 
     #Callback function implementing the pose value received
     def callback(self, data):
-        self.pose = data.pose.pose
-        self.pose.position.x = round(self.pose.position.x, 4)
-        self.pose.position.y = round(self.pose.position.y, 4)
+        self.pose = pose_with_cov_stamped.pose.pose
+        # self.pose = data.pose.pose
+        # self.pose.position.x = round(self.pose.position.x, 4)
+        # self.pose.position.y = round(self.pose.position.y, 4)
+        # print(x[idx])
+        # print "x_r: ", x_r[idx]
+        # print "z_r: ", z_r[idx]
+        # print(x[idx] - x_r[idx])
 
     # **************** HELPER FUNCTIONS ******************* #
     def constrain(self, input, low, high):
@@ -50,24 +53,6 @@ class turtlebot():
         else:
           input = input
         return input
-
-    # def linearVelocity(self, v):
-    #     if turtlebot3_model == "burger":
-    #       v = constrain(v, -BURGER_MAX_LIN_VEL, BURGER_MAX_LIN_VEL)
-    #     elif turtlebot3_model == "waffle" or turtlebot3_model == "waffle_pi":
-    #       v = constrain(v, -WAFFLE_MAX_LIN_VEL, WAFFLE_MAX_LIN_VEL)
-    #     else:
-    #       v = constrain(v, -BURGER_MAX_LIN_VEL, BURGER_MAX_LIN_VEL)
-    #     return v
-
-    # def angularVelocity(self, w):
-    #     if turtlebot3_model == "burger":
-    #       w = constrain(w, -BURGER_MAX_ANG_VEL, BURGER_MAX_ANG_VEL)
-    #     elif turtlebot3_model == "waffle" or turtlebot3_model == "waffle_pi":
-    #       w = constrain(w, -WAFFLE_MAX_ANG_VEL, WAFFLE_MAX_ANG_VEL)
-    #     else:
-    #       w = constrain(w, -BURGER_MAX_ANG_VEL, BURGER_MAX_ANG_VEL)
-    #     return w
 
     def getTwist(self, v, w):
         v = self.constrain(v, -BURGER_MAX_LIN_VEL, BURGER_MAX_LIN_VEL)
@@ -84,37 +69,20 @@ class turtlebot():
     # ***************** ONLINE TRACKING ALGORITHM ******************* #
     def setParameters(self):
         L = .16 # length of robot
-        # samplen = 100
-        # T_con = 1000
         T_sim = 45 # total amount of time (seconds)
         dt = 0.5 # time it takes to sample
         print("Parameters Set")
         return L, T_sim, dt
 
     def setPath(self, T_sim, dt):
-        # total number of samples
-        N = int(round(T_sim/dt))
-        N_sim = int(floor(2*N))
+        N = int(round(T_sim/dt)) # total number of steps
+        N_sim = int(floor(2*N)) # total number of trajectory samples
                 
         # Desired Reference Path (circle)
         path = np.linspace(0,4*pi,N_sim)
         radius = 1
         x_r = radius * np.sin(path)
         z_r = - radius * np.cos(path) + radius
-        # path =  np.linspace(0,30*0.16,N_sim)
-        # x_r = path
-        # z_r = path 
-        # xdot_r = np.diff(x_r)
-        # zdot_r = np.diff(z_r)
-        # theta_r = np.arctan2(zdot_r, xdot_r)
-        # theta_r = np.insert(theta_r, 0, pi/2.)
-        # w_r = np.diff(theta_r)
-        # v_r = np.sqrt(xdot_r**2 + zdot_r**2)
-
-        # initialize arrays
-        # x = np.zeros(N)
-        # z = np.zeros(N)
-        # theta = np.zeros(N)           
         print("Path Set")
         return x_r, z_r, N
 
@@ -159,7 +127,7 @@ class turtlebot():
             # print(idx)
 
         # **** Stop Velocity **** #
-        self.stopTwist(v,w)
+        self.stopTwist()
 
 
         # **** Plotting **** #
@@ -182,7 +150,7 @@ class turtlebot():
         # print(vel_msg)
         self.velocity_publisher.publish(vel_msg)
 
-    def stopTwist(self, v, w):
+    def stopTwist(self):
         vel_msg = self.getTwist(0,0)
         self.velocity_publisher.publish(vel_msg)
 
@@ -201,6 +169,7 @@ if __name__ == '__main__':
         while not rospy.core.is_shutdown():
             x.onlineTracking()
             rospy.core.signal_shutdown('tracking ended')
+        x.stopTwist()
     except KeyboardInterrupt:
         logdebug("keyboard interrupt, shutting down")
         rospy.core.signal_shutdown('keyboard interrupt')
