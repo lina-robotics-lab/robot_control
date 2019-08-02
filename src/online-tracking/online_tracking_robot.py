@@ -4,13 +4,13 @@ import rospy
 import os
 from rospy.core import logdebug
 import numpy as np
-from numpy import pi
+from numpy import pi, sin, cos
 from math import floor
 
 from std_msgs.msg import String
 from geometry_msgs.msg import Pose, PoseWithCovarianceStamped
 # from nav_msgs.msg import Odometry
-# from geometry_msgs.msg import Pose, Twist
+from geometry_msgs.msg import Pose, Twist
 
 from CalXY import CalXY
 from get_robot_pose import getPose
@@ -81,8 +81,10 @@ class turtlebot():
         # Desired Reference Path (circle)
         path = np.linspace(0,4*pi,N_sim)
         radius = 1
-        x_r = radius * np.sin(path)
-        z_r = - radius * np.cos(path) + radius
+        z_r = 0.05*(16*sin(path)**3) - self.pose.position.y
+        x_r = 0.05*(13*cos(path)-5*cos(2*path) - 2*cos(3*path) - cos(4*path) - 6.581) - self.pose.position.x
+#        x_r = radius * np.sin(path)
+#        z_r = - radius * np.cos(path) + radius
         print("Path Set")
         return x_r, z_r, N
 
