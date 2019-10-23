@@ -1,0 +1,13 @@
+Parameters Set 
+Path Set 
+1568482742419348001
+position: 
+  x: 0.0
+  y: 0.0
+  z: 0.0
+orientation: 
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  w: 0.0
+x: 0.0126582278481	z: 0.0

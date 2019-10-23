@@ -18,8 +18,8 @@ def CalXY(dt_con=None,xr=None,yr=None,x_now=None,y_now=None,a_now=None,idx=None)
     c_a=1
     
     # -- velocity effort -- #
-    c_v=dot(0.1,(dt_con) ** 2)
-    c_w=dot(0.1,(dt_con) ** 2)
+    c_v=dot(0.01,(dt_con) ** 2)
+    c_w=dot(0.100,(dt_con) ** 2)
     
     # ------- step size ------- #
     # Lx = 0.1

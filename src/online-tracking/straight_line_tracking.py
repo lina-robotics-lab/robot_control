@@ -1,7 +1,10 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import time
 import rospy
 import os
+
 from rospy.core import logdebug
 import numpy as np
 from numpy import pi, sin, cos
@@ -17,34 +20,31 @@ from get_robot_pose import getPose
 from tf.transformations import euler_from_quaternion
 import matplotlib.pyplot as plt
 
-
 #*************** CONSTANTS ******************#
-BURGER_MAX_LIN_VEL = 0.215
-BURGER_MAX_ANG_VEL = 2.83
+BURGER_MAX_LIN_VEL = 0.21
+BURGER_MAX_ANG_VEL = 2.80
 
 class turtlebot():
 
     def __init__(self):
-        #Creating our publisher and subscriber
         self.pose = Pose()
         self.velocity_publisher = rospy.Publisher('cmd_vel', Twist, queue_size=10)
         self.pose_subscriber = rospy.Subscriber('/vrpn_client_node/TB3_1/pose', PoseStamped, self.callback)
 #        self.pose_subscriber = rospy.Subscriber('amcl_pose', PoseWithCovarianceStamped, self.callback)
-        self.rate = rospy.Rate(5)
-        # rospy.spin()
+        self.freq = 2
+        self.rate = rospy.Rate(self.freq)
 
-    #Callback function implementing the pose value received
+        # log collection
+        self.log = open("tracking_straight_" + str(rospy.get_rostime()) + ".txt", 'w')
+
+    # Callback collecting pose data
     def callback(self, data):
         self.pose = data.pose
-        # self.pose = data.pose.pose
-        # self.pose.position.x = round(self.pose.position.x, 4)
-        # self.pose.position.y = round(self.pose.position.y, 4)
-        # print(x[idx])
-        # print "x_r: ", x_r[idx]
-        # print "z_r: ", z_r[idx]
-        # print(x[idx] - x_r[idx])
 
-    # **************** HELPER FUNCTIONS ******************* #
+
+
+    """ Helper Functions """
+
     def constrain(self, input, low, high):
         if input < low:
           input = low
@@ -66,97 +66,124 @@ class turtlebot():
         twist.angular.z = w
         return twist
 
-    # ***************** ONLINE TRACKING ALGORITHM ******************* #
+
+    """ Online Tracking Algorithm """
+
     def setParameters(self):
         L = .16 # length of robot
-        T_sim = 45 # total amount of time (seconds)
-        dt = 0.2 # time it takes to sample
+        T_sim = 25 # total amount of time (seconds)
+        dt = 0.5 # time it takes to sample
+
         print("Parameters Set")
+        self.log.write("Parameters Set \n")
+
         return L, T_sim, dt
 
     def setPath(self, T_sim, dt):
-        N = int(round(T_sim/dt)) # total number of steps
-        N_sim = int(floor(2*N)) # total number of trajectory samples
-                
-        # Desired Reference Path (circle)
-        path = np.linspace(0,pi/2,N_sim)
-        radius = 1
-#        z_r = 0.05*(16*sin(path)**3) - self.pose.position.y
-#        x_r = 0.05*(13*cos(path)-5*cos(2*path) - 2*cos(3*path) - cos(4*path) - 6.581) - self.pose.position.x
-        x_r = radius * np.sin(path)
-        z_r = radius * np.cos(path) #+ radius
+        N = int(round(T_sim/dt))    # total number of steps
+        N_sim = int(floor(self.freq*N))     # total number of trajectory samples
+
+        # Reference Trajectory - straight line
+
+        path = np.linspace(0, 6, num=N+80)     # generate values from 0 to 1, N_sim entries
+        x_r = path
+        z_r = np.linspace(0, 0, num=N+80)
+
         print("Path Set")
+        self.log.write("Path Set \n")
+
         return x_r, z_r, N
 
     def onlineTracking(self):
         L, T_sim, dt = self.setParameters()
         x_r, z_r, N = self.setPath(T_sim, dt)
 
-        # initialize arrays 
+
+
+        # Initialize Arrays
         x = np.zeros(N)
         z = np.zeros(N)
-        theta = np.zeros(N) 
+        theta = np.zeros(N)
         idx = 1
 
+        print("Waiting")
+        while (self.pose.position.x == 0):
+            continue
+        print("Going")
+
+        # subtract the initial reference error
+        x[0] = self.pose.position.x
+        z[0] = self.pose.position.z
+        x_dif = x_r[0]-x[0]
+        z_dif = z_r[0]-z[0]
+        for i in range(len(x_r)):
+            x_r[i] -= x_dif
+            z_r[i] -= z_dif
+
         while (idx < N) and (not rospy.core.is_shutdown()):
-            # print(self.pose)
             now = rospy.get_rostime()
+            self.log.write(str(now) + "\n")
+            self.log.write(str(self.pose) + "\n")
+
             x[idx] = self.pose.position.x
             z[idx] = self.pose.position.z
-            # print(x[idx])
-            # print "x_r: ", x_r[idx]
-            # print "z_r: ", z_r[idx]
-            # print(x[idx] - x_r[idx])
+
+
+#            if idx == 1
+#              x_r = x_r - x[idx]
+#              z_r = z_r - z[idx]
+#            end
+
             qw = self.pose.orientation.w
             qx = self.pose.orientation.x
             qy = self.pose.orientation.y
             qz = self.pose.orientation.z
+
             (roll, pitch, yaw) = euler_from_quaternion((qx, qy, qz, qw))
             theta[idx] = yaw
-            # print "theta: ", yaw
 
+            """ Caclulate velocity """
+            self.log.write("x_r: " + str(x_r[idx]) + "\tz_r: " + str(z_r[idx]) + "\n")
+            v,w = CalXY(dt, x_r, z_r, x[idx], z[idx], theta[idx], idx)
 
-            # **** Calculate velocity for the next time step **** #
-            v,w = CalXY(dt, x_r, z_r, x[idx], z[idx], theta[idx], idx) 
+#            v = 0.05*v
+#            w = 0.05*w
+
             print "linear velocity = ", v
             print "angular velocity = ", w
+            self.log.write("lin Vel = " + str(v) + "\t ang Vel = " + str(w) + "\n")
 
-            # **** Publish Velocity **** #
-            self.publishTwist(v,w)
-            self.rate.sleep()
-            # print((x[idx] - x[idx-1]) / 0.1)
+            self.publishTwist(v, -w)
             idx = idx + 1
-            # print(idx)
+            self.log.write("\n")
 
-        # **** Stop Velocity **** #
+            self.rate.sleep()
+
         self.stopTwist()
 
-
-        # **** Plotting **** #
         fig = plt.figure()
         plt.plot(x,z)
-        plt.plot(x_r,z_r)
-        # for i in range(len(x)):
-        #     x_idx.append(x[i])
-        #     z_idx.append(z[i])
-        #     x_r_idx.append(x_r[i])
-        #     z_r_idx.append(z_r[i])
-        #     plt.scatter(x_idx, z_idx)
-        #     plt.scatter(x_r_idx, z_r_idx)
-        #     plt.pause(0.0001)
+        plt.plot(x_r[0:len(x)],z_r[0:len(z)])
+        plt.ylim(-1, 1)
         plt.show()
 
-    #**************** Publish *******************#
+    """ Publishing """
     def publishTwist(self, v, w):
         vel_msg = self.getTwist(v,w)
         print(vel_msg)
+        self.log.write(str(vel_msg) + "\n")
+        rospy.sleep(0.01)
         self.velocity_publisher.publish(vel_msg)
 
     def stopTwist(self):
         vel_msg = self.getTwist(0,0)
         print(vel_msg)
+#        self.log.write(str(vel_msg) + "\n")
+        self.log.close()
         self.velocity_publisher.publish(vel_msg)
 
+
+""" Main function """
 if __name__ == '__main__':
     rospy.init_node('turtlebot_controller', anonymous=True)
     x = turtlebot()
@@ -167,7 +194,7 @@ if __name__ == '__main__':
     """
     if not rospy.core.is_initialized():
         raise rospy.exceptions.ROSInitException("client code must call rospy.init_node() first")
-    logdebug("node[%s, %s] entering spin(), pid[%s]", rospy.core.get_caller_id(), rospy.core.get_node_uri(), os.getpid())        
+    logdebug("node[%s, %s] entering spin(), pid[%s]", rospy.core.get_caller_id(), rospy.core.get_node_uri(), os.getpid())
     try:
         while not rospy.core.is_shutdown():
             x.onlineTracking()
