@@ -69,7 +69,7 @@ def CalXY(dt_con=None,xr=None,yr=None,x_now=None,y_now=None,a_now=None,idx=None)
     print "v_real", v_real
     print "w_real", w_real
 
-    return v_real,w_real
+    return v_real,w_real#, x_ol, y_ol
     
 if __name__ == '__main__':
     pass

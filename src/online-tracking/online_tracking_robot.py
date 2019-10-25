@@ -30,7 +30,7 @@ class turtlebot():
         self.velocity_publisher = rospy.Publisher('cmd_vel', Twist, queue_size=10)
         self.pose_subscriber = rospy.Subscriber('/vrpn_client_node/TB3_1/pose', PoseStamped, self.callback)
 #        self.pose_subscriber = rospy.Subscriber('amcl_pose', PoseWithCovarianceStamped, self.callback)
-        self.rate = rospy.Rate(5)
+        self.rate = rospy.Rate(0.2)
         # rospy.spin()
 
     #Callback function implementing the pose value received
@@ -69,22 +69,22 @@ class turtlebot():
     # ***************** ONLINE TRACKING ALGORITHM ******************* #
     def setParameters(self):
         L = .16 # length of robot
-        T_sim = 45 # total amount of time (seconds)
-        dt = 0.2 # time it takes to sample
+        T_sim = 30*10 # total amount of time (seconds)
+        dt = 0.5*10 # time it takes to sample
         print("Parameters Set")
         return L, T_sim, dt
 
     def setPath(self, T_sim, dt):
         N = int(round(T_sim/dt)) # total number of steps
-        N_sim = int(floor(2*N)) # total number of trajectory samples
+        N_sim = int(N+80) # total number of trajectory samples
                 
         # Desired Reference Path (circle)
-        path = np.linspace(0,pi/2,N_sim)
+        path = np.linspace(0,20*pi,N_sim)
         radius = 1
 #        z_r = 0.05*(16*sin(path)**3) - self.pose.position.y
 #        x_r = 0.05*(13*cos(path)-5*cos(2*path) - 2*cos(3*path) - cos(4*path) - 6.581) - self.pose.position.x
-        x_r = radius * np.sin(path)
-        z_r = radius * np.cos(path) #+ radius
+        x_r = radius * np.sin(path) # - radius
+        z_r = radius * np.cos(path) - radius
         print("Path Set")
         return x_r, z_r, N
 
@@ -97,12 +97,35 @@ class turtlebot():
         z = np.zeros(N)
         theta = np.zeros(N) 
         idx = 1
+        # x_initial = self.pose.position.x
+        # z_initial = self.pose.position.z
+        # for i in range(len(x_r)):
+        #     x_r[i] = x_r[i] + x_initial
+        #     z_r[i] = z_r[i] + z_initial
+        # fig = plt.figure()
+        # plt.plot(x_r,z_r)
+        # print "x_initial", x_initial
+        # print "z_initial", z_initial
+        x[0] = self.pose.position.x
+        z[0] = self.pose.position.z
+
 
         while (idx < N) and (not rospy.core.is_shutdown()):
             # print(self.pose)
             now = rospy.get_rostime()
             x[idx] = self.pose.position.x
             z[idx] = self.pose.position.z
+            print "x = ", x[idx]
+            print "z = ", z[idx]
+
+            if idx==1:
+                for i in range(len(x_r)):
+                    x_r[i] = x_r[i] + x[1]
+                    z_r[i] = z_r[i] + z[1]
+                fig = plt.figure()
+                plt.plot(x_r,z_r)
+                print "x_initial", x[1]
+                print "z_initial", z[1]
             # print(x[idx])
             # print "x_r: ", x_r[idx]
             # print "z_r: ", z_r[idx]
@@ -117,13 +140,22 @@ class turtlebot():
 
 
             # **** Calculate velocity for the next time step **** #
-            v,w = CalXY(dt, x_r, z_r, x[idx], z[idx], theta[idx], idx) 
+            v,w= CalXY(dt, x_r, z_r, x[idx], z[idx], theta[idx], idx) 
             print "linear velocity = ", v
             print "angular velocity = ", w
 
             # **** Publish Velocity **** #
+            # self.publishTwist(v,w)
+            # self.rate.sleep()
+
+            # Stop and Go Test
             self.publishTwist(v,w)
             self.rate.sleep()
+            # time.sleep(dt)
+            # self.publishTwist(v,0)
+            # self.rate.sleep()
+            # time.sleep(dt)
+            # self.publishTwist(0,0)
             # print((x[idx] - x[idx-1]) / 0.1)
             idx = idx + 1
             # print(idx)
@@ -136,6 +168,7 @@ class turtlebot():
         fig = plt.figure()
         plt.plot(x,z)
         plt.plot(x_r,z_r)
+        # plt.plot(x_ol,y_ol)
         # for i in range(len(x)):
         #     x_idx.append(x[i])
         #     z_idx.append(z[i])

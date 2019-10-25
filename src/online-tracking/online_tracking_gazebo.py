@@ -90,7 +90,7 @@ class turtlebot():
         # samplen = 100
         # T_con = 1000
         T_sim = 30 # total amount of time (seconds)
-        dt = 0.1 # time it takes to sample
+        dt = 0.3 # time it takes to sample
         print("Parameters Set")
         return L, T_sim, dt
 
@@ -166,15 +166,20 @@ class turtlebot():
 
 
             # **** Calculate velocity for the next time step **** #
-            v,w = CalXY(dt, x_r, z_r, x[idx], z[idx], theta[idx], idx) 
+            v,w,x_ol,y_ol = CalXY(dt, x_r, z_r, x[idx], z[idx], theta[idx], idx) 
             # print "linear velocity = ", v
             # print "angular velocity = ", w
             # print("linear velocity = %d", v)
             # print("angular velocity = %d", w)
 
             # **** Publish Velocity **** #
-            self.publishTwist(v,w)
-            self.rate.sleep()
+            self.publishTwist(0,w)
+            time.sleep(dt)
+            self.publishTwist(v,0)
+            time.sleep(dt)
+            self.publishTwist(0,0)
+            # self.publishTwist(v,w)
+            # self.rate.sleep()
             # print((x[idx] - x[idx-1]) / 0.1)
             idx = idx + 1
             # print(idx)
@@ -188,6 +193,7 @@ class turtlebot():
         fig = plt.figure()
         plt.plot(x,z)
         plt.plot(x_r,z_r)
+        plt.plot(x_ol,y_ol)
         # for i in range(len(x)):
         #     x_idx.append(x[i])
         #     z_idx.append(z[i])
